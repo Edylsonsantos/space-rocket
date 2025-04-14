@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Rocket - Jogo de Multiplicador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes rocketRise {
+            0% { transform: translateY(0) rotate(0deg); }
+            100% { transform: translateY(-100vh) rotate(0deg); }
+        }
+        
+        .rocket {
+            transition: transform 0.1s ease-out;
+        }
+        
+        .explosion-animation {
+            animation: rocketRise 0.5s forwards;
+        }
+        
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .message-error {
+            color: #ef4444;
+            font-size: 1rem;
+            text-transform: uppercase;
+        }
+        
+        .message-success {
+            color: #4ade80;
+            font-size: 1rem;
+            text-transform: uppercase;
+        }
+        
+        button, input {
+            border-radius: 4px;
+        }
+        
+        .disabled-control {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        .countdown {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+        
+        /* Estilos para o espaço */
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+        
+        @keyframes asteroidMove {
+            0% { transform: translateY(0) translateX(0) rotate(0deg); }
+            100% { transform: translateY(100vh) translateX(100px) rotate(360deg); }
+        }
+        
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            animation: twinkle 2s infinite;
+            pointer-events: none;
+        }
+        
+        .asteroid {
+            position: absolute;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50,5 C60,15 85,20 95,30 C105,40 95,55 85,65 C75,75 60,85 50,95 C40,85 25,75 15,65 C5,55 15,40 25,30 C35,20 40,15 50,5 Z" fill="%23755f4b"/></svg>');
+            background-size: contain;
+            pointer-events: none;
+            animation: asteroidMove linear infinite;
+        }
+        
+        #space-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+            background: linear-gradient(to bottom, #000000, #0a0e2e);
+        }
+        
+        #game-container {
+            position: relative;
+            z-index: 10;
+        }
+        
+        #flight-path {
+            height: 100%;
+            width: 2px;
+            background: linear-gradient(to bottom, transparent, #234CAF50, transparent);
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen flex items-center justify-center p-4">
+    <!-- Container do espaço com estrelas e asteroides -->
+    <div id="space-container"></div>
+
+    <div id="game-container" class="bg-gray-800/80 shadow-lg w-full max-w-2xl flex backdrop-blur-sm">
+        <div class="bg-gray-700/90 p-2 w-80 rounded-sm-lg">
+            <div class="flex justify-between items-center mb-3 border-b border-gray-600 pb-2">
+                <h3 class="text-sm font-bold">Histórico de Apostas</h3>
+                <div class="flex items-center gap-1">
+                    <span class="text-green-400 font-bold text-base bg-gray-800 p-2 rounded-sm" id="balanceDisplay">1000.00 Mt</span>
+                </div>
+            </div>
+            
+            <div id="history" class="space-y-0 max-h-96 overflow-y-auto">
+                <!-- Histórico será preenchido aqui -->
+            </div>
+        </div>
+        
+        <!-- Game Area -->
+        <div class="p-6">
+            <!-- Multiplier Display -->
+            <div class="bg-gray-700/90 p-6 mb-6 text-center rounded-sm-sm">
+                <div id="multiplier" class="text-5xl font-bold text-green-400"></div>
+                <div id="message" class="mt-2 min-h-6"></div>
+                <div id="countdown" class="countdown mt-2 uppercase"></div>
+            </div>
+            
+            <!-- Rocket Graphic -->
+            <div class="relative h-40 mb-6 overflow-hidden">
+                <div id="flight-path" class="flight-path"></div>
+                <div id="rocket" class="rocket absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-24">
+                    <svg viewBox="0 0 100 150" class="w-full h-full">
+                        <path d="M50,10 L70,40 L70,60 L60,70 L60,100 L40,100 L40,70 L30,60 L30,40 Z" fill="#cbd5e1" stroke="#000"/>
+                        <path d="M50,100 L55,120 L45,120 Z" fill="#ef4444" stroke="#000"/>
+                        <path d="M40,70 L30,60 L20,65 L25,75 Z" fill="#94a3b8" stroke="#000"/>
+                        <path d="M60,70 L70,60 L80,65 L75,75 Z" fill="#94a3b8" stroke="#000"/>
+                        <circle cx="50" cy="30" r="10" fill="#f59e0b"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <!-- Bet Controls -->
+            <div class="flex gap-4 w-full">
+                <!-- Card de controle de apostas -->
+                <div class="flex flex-col gap-4" style="width: 50%">
+                    <!-- Controle de valor manual (+/-) -->
+                    <div id="betControls" class="flex items-center gap-1 justify-around">
+                        <button id="decreaseBet" class="bg-gray-600 hover:bg-gray-700 h-12 w-12 flex items-center justify-center">
+                            <span class="text-xl">-</span>
+                        </button>
+                        <input type="number" id="betAmount" 
+                               class="h-12 p-3 bg-gray-700 text-center w-28" 
+                               value="10" min="1">
+                        <button id="increaseBet" class="bg-gray-600 hover:bg-gray-700 h-12 w-12 flex items-center justify-center">
+                            <span class="text-xl">+</span>
+                        </button>
+                    </div>
+                
+                    <!-- Botões de valor rápido -->
+                    <div id="quickBets" class="grid grid-cols-4 gap-1">
+                        <button class="quick-bet bg-gray-600 hover:bg-gray-700 h-12 flex items-center justify-center" data-value="10">
+                            <span class="text-sm">10</span>
+                        </button>
+                        <button class="quick-bet bg-gray-600 hover:bg-gray-700 h-12 flex items-center justify-center" data-value="20">
+                            <span class="text-sm">20</span>
+                        </button>
+                        <button class="quick-bet bg-gray-600 hover:bg-gray-700 h-12 flex items-center justify-center" data-value="50">
+                            <span class="text-sm">50</span>
+                        </button>
+                        <button class="quick-bet bg-gray-600 hover:bg-gray-700 h-12 flex items-center justify-center" data-value="100">
+                            <span class="text-sm">100</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Card de ações (Apostar/Retirar) -->
+                <div class="flex-1 flex flex-col gap-2" style="width: 50%">
+                    <button id="placeBet" 
+                            class="h-full bg-green-600 hover:bg-green-700 py-3 px-4 font-bold uppercase transition flex items-center justify-center">
+                        Apostar
+                    </button>
+                    <button id="cashOut" disabled
+                            class="h-full bg-yellow-600 hover:bg-yellow-700 py-3 px-4 font-bold uppercase transition disabled:opacity-50 flex items-center justify-center">
+                        Retirar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let gameRunning = false;
+        let currentMultiplier = 1.0;
+        let multiplierSpeed = 0.01;
+        let gameInterval;
+        let playerBet = 0;
+        let cashedOut = false;
+        let balance = 1000.00;
+        let autoStartTimer = null;
+        let countdownInterval = null;
+        let targetMultiplier = 0;
+        
+        // DOM Elements
+        const multiplierDisplay = document.getElementById('multiplier');
+        const messageDisplay = document.getElementById('message');
+        const countdownDisplay = document.getElementById('countdown');
+        const rocket = document.getElementById('rocket');
+        const betAmountInput = document.getElementById('betAmount');
+        const placeBetBtn = document.getElementById('placeBet');
+        const cashOutBtn = document.getElementById('cashOut');
+        const historyContainer = document.getElementById('history');
+        const increaseBetBtn = document.getElementById('increaseBet');
+        const decreaseBetBtn = document.getElementById('decreaseBet');
+        const quickBetsContainer = document.getElementById('quickBets');
+        const betControls = document.getElementById('betControls');
+        const balanceDisplay = document.getElementById('balanceDisplay');
+        const spaceContainer = document.getElementById('space-container');
+        
+        // Criar elementos espaciais
+        function createSpaceElements() {
+            // Criar estrelas
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.width = `${Math.random() * 3 + 1}px`;
+                star.style.height = star.style.width;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 2}s`;
+                spaceContainer.appendChild(star);
+            }
+            
+            // Criar asteroides
+            for (let i = 0; i < 5; i++) {
+                const asteroid = document.createElement('div');
+                asteroid.className = 'asteroid';
+                const size = Math.random() * 30 + 20;
+                asteroid.style.width = `${size}px`;
+                asteroid.style.height = `${size}px`;
+                asteroid.style.left = `${Math.random() * 100}%`;
+                asteroid.style.top = `-${size}px`;
+                asteroid.style.animationDuration = `${Math.random() * 10 + 10}s`;
+                asteroid.style.animationDelay = `${Math.random() * 5}s`;
+                spaceContainer.appendChild(asteroid);
+            }
+        }
+        
+        // Inicializar saldo e elementos espaciais
+        updateBalance();
+        createSpaceElements();
+        
+        // Bet amount controls
+        increaseBetBtn.addEventListener('click', () => {
+            betAmountInput.value = parseInt(betAmountInput.value) + 1;
+        });
+        
+        decreaseBetBtn.addEventListener('click', () => {
+            const currentValue = parseInt(betAmountInput.value);
+            if (currentValue > 1) {
+                betAmountInput.value = currentValue - 1;
+            }
+        });
+        
+        // Quick bet buttons
+        document.querySelectorAll('.quick-bet').forEach(button => {
+            button.addEventListener('click', () => {
+                betAmountInput.value = button.getAttribute('data-value');
+            });
+        });
+        
+        // Game Functions
+        function startGame() {
+            if (gameRunning) return;
+            
+            clearCountdown();
+            
+            playerBet = parseFloat(betAmountInput.value);
+            if (isNaN(playerBet) || playerBet <= 0) {
+                showMessage("Insira um valor válido!", "error");
+                return;
+            }
+            
+            if (playerBet > balance) {
+                showMessage("Saldo insuficiente!", "error");
+                return;
+            }
+            
+            balance -= playerBet;
+            updateBalance();
+            
+            gameRunning = true;
+            cashedOut = false;
+            currentMultiplier = 1.0;
+            targetMultiplier = 1.2 + Math.random() * 13.8;
+            multiplierSpeed = 0.01 + (Math.random() * 0.02);
+            
+            // Desabilitar controles
+            disableControls(true);
+            
+            // Reset rocket position
+            rocket.style.transform = 'translateY(0)';
+            rocket.classList.remove('explosion-animation');
+            
+            gameInterval = setInterval(() => updateGame(), 20);
+        }
+        
+        function updateGame() {
+            // Increase multiplier
+            currentMultiplier += multiplierSpeed;
+            multiplierSpeed *= 1.002;
+            
+            // Update display
+            multiplierDisplay.textContent = currentMultiplier.toFixed(2) + 'x';
+            
+            // Move rocket
+            const progress = Math.min(currentMultiplier / 15, 1);
+            rocket.style.transform = `translateY(-${progress * 100}%)`;
+            
+            // Verificar se atingiu o multiplicador alvo
+            if (currentMultiplier >= targetMultiplier) {
+                endGame(false);
+            }
+        }
+        
+        function cashOut() {
+            if (!gameRunning || cashedOut) return;
+            
+            cashedOut = true;
+            registerWin();
+        }
+        
+        function registerWin() {
+            const winnings = playerBet * currentMultiplier;
+            
+            balance += winnings;
+            updateBalance();
+            
+            addToHistory(currentMultiplier, true, winnings);
+            
+            showMessage(`Você retirou com ${currentMultiplier.toFixed(2)}x! Ganhou ${winnings.toFixed(2)}Mt`, "success");
+        }
+        
+        function endGame(win) {
+            clearInterval(gameInterval);
+            gameRunning = false;
+            
+            if (!win) {
+                rocket.classList.add('explosion-animation');
+                const loss = playerBet;
+                addToHistory(currentMultiplier, false, loss);
+                showMessage("O foguete explodiu! Você perdeu sua aposta.", "error");
+            }
+            
+            disableControls(false);
+            startCountdown();
+        }
+        
+        function startCountdown() {
+            let seconds = 7;
+            multiplierDisplay.textContent = 'INICIANDO';
+            
+            countdownInterval = setInterval(() => {
+                seconds--;
+                countdownDisplay.textContent = `Próximo jogo em: ${seconds}s`;
+                
+                if (seconds <= 0) {
+                    clearCountdown();
+                    startGame();
+                }
+            }, 1000);
+        }
+        
+        function clearCountdown() {
+            clearInterval(countdownInterval);
+            countdownDisplay.textContent = "";
+        }
+        
+        function addToHistory(multiplier, win, amount) {
+            const historyItem = document.createElement('div');
+            historyItem.className = `flex history-item p-2 rounded-sm flex justify-between items-center ${win ? 'bg-green-800/50' : 'bg-red-500/15'}`;
+            
+            const date = new Date();
+            const timeString = date.toLocaleTimeString();
+            
+            historyItem.innerHTML = `
+                    <div class="text-right">
+                        <div class="font-bold ${win ? 'text-green-400' : 'text-red-400'}">${multiplier.toFixed(2)}x</div>
+                        <div class="text-xs">${amount.toFixed(2)}Mt</div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-xs">${timeString}</span>
+                    </div>
+            `;
+            
+            historyContainer.prepend(historyItem);
+            
+            if (historyContainer.children.length > 20) {
+                historyContainer.removeChild(historyContainer.lastChild);
+            }
+        }
+        
+        function showMessage(text, type) {
+            messageDisplay.textContent = text;
+            messageDisplay.className = type === "error" ? "message-error" : "message-success";
+            
+            setTimeout(() => {
+                messageDisplay.textContent = "";
+                messageDisplay.className = "";
+            }, 3000);
+        }
+        
+        function disableControls(disabled) {
+            if (disabled) {
+                betControls.classList.add('disabled-control');
+                quickBetsContainer.classList.add('disabled-control');
+                placeBetBtn.disabled = true;
+                cashOutBtn.disabled = false;
+            } else {
+                betControls.classList.remove('disabled-control');
+                quickBetsContainer.classList.remove('disabled-control');
+                placeBetBtn.disabled = false;
+                cashOutBtn.disabled = true;
+            }
+        }
+        
+        function updateBalance() {
+            balanceDisplay.textContent = balance.toFixed(2) + ' Mt';
+        }
+        
+        // Event Listeners
+        placeBetBtn.addEventListener('click', startGame);
+        cashOutBtn.addEventListener('click', cashOut);
+        
+        betAmountInput.addEventListener('input', () => {
+            clearInterval(countdownInterval);
+            countdownDisplay.textContent = "";
+        });
+        
+        document.querySelectorAll('.quick-bet').forEach(btn => {
+            btn.addEventListener('click', () => {
+                clearInterval(countdownInterval);
+                countdownDisplay.textContent = "";
+            });
+        });
+    </script>
+</body>
+</html>
